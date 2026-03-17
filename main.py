@@ -25,3 +25,4 @@ def scan(message):
 # ڕەنکردنی بۆتەکە
 print("Bot is starting...")
 bot.infinity_polling()
+
