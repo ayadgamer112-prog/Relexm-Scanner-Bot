@@ -1,26 +1,16 @@
 name: Relexm 24/7 Bot
-
 on:
   schedule:
-    - cron: '0 */6 * * *' # هەموو ٦ کاتژمێر جارێک خۆی تازە دەکاتەوە
-  workflow_dispatch: # ڕێگەت دەدات بە دەستی ڕەنی بکەیت
-
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python_version: '3.9'
-
-      - name: Install dependencies
-        run: |
-          pip install pyTelegramBotAPI requests
-
-      - name: Run Bot
-        run: python main.py
-        
+      - run: pip install -r requirements.txt
+      - run: python main.py
+      
