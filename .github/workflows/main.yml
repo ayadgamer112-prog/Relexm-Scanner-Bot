@@ -27,5 +27,5 @@ jobs:
         pip install pyTelegramBotAPI requests
 
     - name: Run Bot
-      run: python main1.py
+      run: python Main1.py
       
