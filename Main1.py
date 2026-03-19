@@ -6,10 +6,9 @@ import re
 # تۆکنەکەی خۆت کە ناردت
 API_TOKEN = '8757664382:AAE1ZQCbH6uw4s0Bjt_lRURDnHFBlYUI_Xw'
 
-# تێبینی: کلیلی ڤایرۆس تۆتاڵەکەت لێرە دابنێ لە نێوان جووتە کۆتەیشنەکان
+# تێبینی: کلیلی ڤایرۆس تۆتاڵەکەت لێرە دابنێ
 VT_API_KEY = '57f0783560b766b55be62be80a3ac08544fa77ba565a433d940a8b7656629e20'
 
-# بەکارهێنانی parse_mode='HTML' بۆ دیزاینێکی جوانتر
 bot = telebot.TeleBot(API_TOKEN, parse_mode='HTML')
 
 @bot.message_handler(commands=['start', 'help'])
@@ -23,7 +22,6 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
-    # تەکنیکی پێشکەوتوو: دۆزینەوەی لینک لە ناو دەقدا بە Regex
     urls = re.findall(r'(https?://[^\s]+)', message.text)
     
     if not urls:
@@ -31,11 +29,8 @@ def handle_message(message):
         return
         
     url_to_scan = urls[0]
-    
-    # ناردنی نامەی چاوەڕوانی
     wait_msg = bot.reply_to(message, "⏳ <i>خەریکی شیکردنەوەی لینکەکە و پەیوەندیکردنم بە داتابەیسی VirusTotal...</i>")
     
-    # ئامادەکردنی لینکەکە بۆ ڤایرۆس تۆتاڵ (ئینکۆدکردنی بە Base64)
     url_id = base64.urlsafe_b64encode(url_to_scan.encode()).decode().strip("=")
     api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
     
@@ -56,13 +51,11 @@ def handle_message(message):
             harmless = stats['harmless']
             undetected = stats['undetected']
             
-            # دروستکردنی لۆژیکی بڕیاردان
             if malicious > 0 or suspicious > 0:
                 status = "❌ <b>مەترسیدارە!</b> تکایە هەرگیز ئەم لینکە مەکەرەوە."
             else:
                 status = "✅ <b>سەلامەتە</b> (بەپێی پشکنینی داتابەیسەکە)."
                 
-            # دیزاینکردنی ئەنجامەکە بە شێوەیەکی پرۆفیشناڵ
             result_text = f"""
 🛡️ <b>ئەنجامی پشکنینی Relex Scanner</b> 🛡️
 
@@ -77,18 +70,26 @@ def handle_message(message):
 💡 <b>بڕیاری کۆتایی:</b>
 {status}
 """
-            # گۆڕینی نامە چاوەڕوانییەکە بۆ ئەنجامەکە (بۆ ئەوەی پڕۆفیشناڵتر دەربکەوێت)
             bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=wait_msg.message_id)
             
         elif response.status_code == 404:
-            bot.edit_message_text("⚠️ <b>تێبینی:</b> ئەم لینکە تا ئێستا لە ڤایرۆس تۆتاڵ پشکنینی بۆ نەکراوە، یان پێویستی بە پشکنینی نوێیە.", chat_id=message.chat.id, message_id=wait_msg.message_id)
+            # ئەم بەشەمان گۆڕی بۆ ئەوەی لینکە نوێیەکان بناسێت
+            bot.edit_message_text("🔍 <b>ئەم لینکە نوێیە و لە داتابەیسدا نییە!</b>\nخەریکم دەینێرم بۆ تاقیگەی ڤایرۆس تۆتاڵ بۆ پشکنینی یەکەمجار...", chat_id=message.chat.id, message_id=wait_msg.message_id)
+            
+            # فەرمانی ناردنی لینک بۆ سکان
+            scan_api = "https://www.virustotal.com/api/v3/urls"
+            payload = {"url": url_to_scan}
+            requests.post(scan_api, data=payload, headers=headers)
+            
+            bot.send_message(message.chat.id, "✅ <b>لینکەکە بە سەرکەوتوویی ناردرا.</b>\n١ خولەکی تر دووبارە لینکەکە بنێرەوە، ئێستا ڤایرۆس تۆتاڵ خەریکی پارچە-پارچەکردنی لینکەکەیە!")
+            
         elif response.status_code == 401:
-            bot.edit_message_text("❌ <b>کێشەی API:</b> کلیلی ڤایرۆس تۆتاڵ هەڵەیە یان دانەنراوە.", chat_id=message.chat.id, message_id=wait_msg.message_id)
+            bot.edit_message_text("❌ <b>کێشەی API:</b> کلیلی ڤایرۆس تۆتاڵ هەڵەیە.", chat_id=message.chat.id, message_id=wait_msg.message_id)
         else:
             bot.edit_message_text(f"❌ <b>کێشەیەکی تەکنیکی ڕوویدا:</b> کۆدی {response.status_code}", chat_id=message.chat.id, message_id=wait_msg.message_id)
             
     except Exception as e:
-        bot.edit_message_text("❌ <b>هەڵەیەک ڕوویدا لە پەیوەندیکردندا بە سێرڤەر.</b>", chat_id=message.chat.id, message_id=wait_msg.message_id)
+        bot.edit_message_text("❌ <b>هەڵەیەک ڕوویدا لە پەیوەندیکردندا.</b>", chat_id=message.chat.id, message_id=wait_msg.message_id)
 
 print("Relex Scanner Bot is successfully running...")
 bot.polling()
