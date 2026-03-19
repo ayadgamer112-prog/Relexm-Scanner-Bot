@@ -1,51 +1,94 @@
-
 import telebot
 import requests
-import time
 import base64
+import re
 
-TOKEN = "8757664382:AAE1ZQCbH6uw4s0Bjt_lRURDnHFBlYUI_Xw"
-# تێبینی: لێرەدا کلیلێکی کاتی دادەنێم، بەڵام باشترە دواتر کلیلێکی تایبەت بە خۆت وەرگریت
-VT_API_KEY = "64c919d6790757e937397b9525c276a1629851726a8f6d639b7d032252a1d044"
-bot = telebot.TeleBot(TOKEN)
+# تۆکنەکەی خۆت کە ناردت
+API_TOKEN = '8757664382:AAE1ZQCbH6uw4s0Bjt_lRURDnHFBlYUI_Xw'
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "🛡️ **بەخێربێیت بۆ Relexm Global Scanner!**\n\nئێستا بۆتەکە بەستراوەتەوە بە ٧٠ ئەنتی ڤایرۆسی جیهانی. هەر لینکێکم بۆ بنێریت بە وردی دەیپشکنم.")
+# تێبینی: کلیلی ڤایرۆس تۆتاڵەکەت لێرە دابنێ لە نێوان جووتە کۆتەیشنەکان
+VT_API_KEY = '57f0783560b766b55be62be80a3ac08544fa77ba565a433d940a8b7656629e20'
 
-@bot.message_handler(func=lambda m: True)
-def scan_link(message):
-    url = message.text.strip()
-    if not url.startswith("http"):
-        bot.reply_to(message, "❌ تکایە لینکێکی دروست بنێرە.")
+# بەکارهێنانی parse_mode='HTML' بۆ دیزاینێکی جوانتر
+bot = telebot.TeleBot(API_TOKEN, parse_mode='HTML')
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    text = (
+        "🛡️ <b>سڵاو! من Relex Scanner-م.</b>\n\n"
+        "ئامادەم بۆ پشکنینی هەر لینکێک (http یان https) بۆ دڵنیابوون لە سەلامەتی.\n"
+        "تەنها لینکەکەم بۆ بنێرە."
+    )
+    bot.reply_to(message, text)
+
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    # تەکنیکی پێشکەوتوو: دۆزینەوەی لینک لە ناو دەقدا بە Regex
+    urls = re.findall(r'(https?://[^\s]+)', message.text)
+    
+    if not urls:
+        bot.reply_to(message, "⚠️ <b>هەڵە:</b> هیچ لینکێکی ڕاست و دروست نەدۆزرایەوە لە نامەکەتدا.")
         return
-
-    msg = bot.reply_to(message, "🔍 خەریکی پشکنینی وردم لە VirusTotal...")
-
+        
+    url_to_scan = urls[0]
+    
+    # ناردنی نامەی چاوەڕوانی
+    wait_msg = bot.reply_to(message, "⏳ <i>خەریکی شیکردنەوەی لینکەکە و پەیوەندیکردنم بە داتابەیسی VirusTotal...</i>")
+    
+    # ئامادەکردنی لینکەکە بۆ ڤایرۆس تۆتاڵ (ئینکۆدکردنی بە Base64)
+    url_id = base64.urlsafe_b64encode(url_to_scan.encode()).decode().strip("=")
+    api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
+    
+    headers = {
+        "accept": "application/json",
+        "x-apikey": VT_API_KEY
+    }
+    
     try:
-        # گۆڕینی URL بۆ شێوازی پێویست بۆ VirusTotal
-        url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
-        api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
-        headers = {"x-apikey": VT_API_KEY}
-
         response = requests.get(api_url, headers=headers)
         
         if response.status_code == 200:
             data = response.json()
             stats = data['data']['attributes']['last_analysis_stats']
+            
             malicious = stats['malicious']
             suspicious = stats['suspicious']
+            harmless = stats['harmless']
+            undetected = stats['undetected']
             
+            # دروستکردنی لۆژیکی بڕیاردان
             if malicious > 0 or suspicious > 0:
-                result = f"🚨 **ئاگاداربە! لینکەکە مەترسیدارە!**\n\n🌐 لینک: `{url}`\n🚫 ڤایرۆس: {malicious}\n⚠️ گوماناوی: {suspicious}\n\n❌ پێشنیار دەکەم نەیکەیتەوە!"
+                status = "❌ <b>مەترسیدارە!</b> تکایە هەرگیز ئەم لینکە مەکەرەوە."
             else:
-                result = f"✅ **ئەنجامی پشکنین: سەلامەتە**\n\n🌐 لینک: `{url}`\n🛡️ ٧٠ ئەنتی ڤایرۆس دەڵێن پاکە.\n💎 بەبێ کێشە دەتوانیت بەکاری بهێنیت."
+                status = "✅ <b>سەلامەتە</b> (بەپێی پشکنینی داتابەیسەکە)."
+                
+            # دیزاینکردنی ئەنجامەکە بە شێوەیەکی پرۆفیشناڵ
+            result_text = f"""
+🛡️ <b>ئەنجامی پشکنینی Relex Scanner</b> 🛡️
+
+🔗 <b>لینک:</b> {url_to_scan}
+
+📊 <b>ئاماری پشکنین:</b>
+🔴 مەترسیدار: <b>{malicious}</b> ئەنتی‌ڤایرۆس
+🟠 گوماناوی: <b>{suspicious}</b> ئەنتی‌ڤایرۆس
+🟢 سەلامەت: <b>{harmless}</b> ئەنتی‌ڤایرۆس
+⚪ نەناسراو: {undetected}
+
+💡 <b>بڕیاری کۆتایی:</b>
+{status}
+"""
+            # گۆڕینی نامە چاوەڕوانییەکە بۆ ئەنجامەکە (بۆ ئەوەی پڕۆفیشناڵتر دەربکەوێت)
+            bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=wait_msg.message_id)
+            
+        elif response.status_code == 404:
+            bot.edit_message_text("⚠️ <b>تێبینی:</b> ئەم لینکە تا ئێستا لە ڤایرۆس تۆتاڵ پشکنینی بۆ نەکراوە، یان پێویستی بە پشکنینی نوێیە.", chat_id=message.chat.id, message_id=wait_msg.message_id)
+        elif response.status_code == 401:
+            bot.edit_message_text("❌ <b>کێشەی API:</b> کلیلی ڤایرۆس تۆتاڵ هەڵەیە یان دانەنراوە.", chat_id=message.chat.id, message_id=wait_msg.message_id)
         else:
-            result = "⚠️ ئەم لینکە تازەیە و پێویستی بە پشکنینی دەستی هەیە لە ماڵپەڕی VirusTotal."
-
-        bot.edit_message_text(result, message.chat.id, msg.message_id, parse_mode="Markdown")
-
+            bot.edit_message_text(f"❌ <b>کێشەیەکی تەکنیکی ڕوویدا:</b> کۆدی {response.status_code}", chat_id=message.chat.id, message_id=wait_msg.message_id)
+            
     except Exception as e:
-        bot.edit_message_text(f"❌ هەڵەیەک ڕوویدا: {str(e)}", message.chat.id, msg.message_id)
+        bot.edit_message_text("❌ <b>هەڵەیەک ڕوویدا لە پەیوەندیکردندا بە سێرڤەر.</b>", chat_id=message.chat.id, message_id=wait_msg.message_id)
 
-bot.infinity_polling()
+print("Relex Scanner Bot is successfully running...")
+bot.polling()
