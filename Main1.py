@@ -22,11 +22,15 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
+    # تەکنیکی دۆزینەوەی لینک
     urls = re.findall(r'(https?://[^\s]+)', message.text)
     
+    # گۆڕانکاری ١: ئەگەر لینک نەبوو، هیچ وەڵامێک مەدەرەوە (بۆ ئەوەی خەڵک بێزار نەبن)
     if not urls:
-        bot.reply_to(message, "⚠️ <b>هەڵە:</b> هیچ لینکێکی ڕاست و دروست نەدۆزرایەوە لە نامەکەتدا.")
         return
+        
+    # گۆڕانکاری ٢: نیشاندانی ناوی ئەو کەسەی کە بەکاری دەهێنێت لە ناو لۆگی گیتھەب
+    print(f"New Scan Request from: {message.from_user.first_name}")
         
     url_to_scan = urls[0]
     wait_msg = bot.reply_to(message, "⏳ <i>خەریکی شیکردنەوەی لینکەکە و پەیوەندیکردنم بە داتابەیسی VirusTotal...</i>")
@@ -73,15 +77,13 @@ def handle_message(message):
             bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=wait_msg.message_id)
             
         elif response.status_code == 404:
-            # ئەم بەشەمان گۆڕی بۆ ئەوەی لینکە نوێیەکان بناسێت
             bot.edit_message_text("🔍 <b>ئەم لینکە نوێیە و لە داتابەیسدا نییە!</b>\nخەریکم دەینێرم بۆ تاقیگەی ڤایرۆس تۆتاڵ بۆ پشکنینی یەکەمجار...", chat_id=message.chat.id, message_id=wait_msg.message_id)
             
-            # فەرمانی ناردنی لینک بۆ سکان
             scan_api = "https://www.virustotal.com/api/v3/urls"
             payload = {"url": url_to_scan}
             requests.post(scan_api, data=payload, headers=headers)
             
-            bot.send_message(message.chat.id, "✅ <b>لینکەکە بە سەرکەوتوویی ناردرا.</b>\n١ خولەکی تر دووبارە لینکەکە بنێرەوە، ئێستا ڤایرۆس تۆتاڵ خەریکی پارچە-پارچەکردنی لینکەکەیە!")
+            bot.send_message(message.chat.id, "✅ <b>لینکەکە بە سەرکەوتوویی ناردرا.</b>\n١ خولەکی تر دووبارە لینکەکە بنێرەوە بۆ بینینی ئەنجام.")
             
         elif response.status_code == 401:
             bot.edit_message_text("❌ <b>کێشەی API:</b> کلیلی ڤایرۆس تۆتاڵ هەڵەیە.", chat_id=message.chat.id, message_id=wait_msg.message_id)
